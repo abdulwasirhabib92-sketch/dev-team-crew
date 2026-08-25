@@ -1,6 +1,7 @@
 """
 Entry point — supports both CLI and web API modes.
-Multi-LLM: Gemini, Groq, OpenRouter, Hugging Face, OpenAI, Anthropic.
+Multi-LLM: each agent can call any/all LLM providers on demand.
+Each agent is a character with personality, vibe, and working style.
 
 CLI:  python main.py "Build a REST API for a todo app"
 API:  uvicorn main:app --host 0.0.0.0 --port $PORT
@@ -20,12 +21,15 @@ def run_cli():
         sys.exit(1)
 
     topic = sys.argv[1]
-    print(f"\n🚀 Starting Dev Team Crew for: {topic}\n")
+    print(f"\n🚀 Dev Team Crew assembling for: {topic}\n")
 
-    # Show which providers are active
-    from agents import list_available_providers
+    from agents import list_available_providers, list_team
     available = list_available_providers()
-    print(f"🔧 Active LLM providers: {', '.join(available)}")
+    print(f"🔧 Active LLM providers: {', '.join(available) if available else 'NONE — add API keys!'}")
+    print("=" * 60)
+    print("👥 The Team:")
+    for member in list_team():
+        print(f"  {member['codename']} ({member['role']}) — {member['vibe']}")
     print("=" * 60)
 
     from crew import DevTeamCrew
@@ -40,15 +44,14 @@ def run_cli():
 
 # ─── Web API Mode ──────────────────────────────────────────────────────────
 def create_app():
-    """Create a FastAPI app for web deployment."""
     from fastapi import FastAPI
     from pydantic import BaseModel
 
     app = FastAPI(
         title="Dev Team Crew API",
-        description="A 6-agent AI development team with multi-LLM support: "
-                    "Researcher, Architect, Implementer, Critic, Tester, DevOps",
-        version="2.0.0",
+        description="A 6-agent AI dev team — each agent is a character with personality "
+                    "and can call any/all LLM providers on demand.",
+        version="3.0.0",
     )
 
     class TaskRequest(BaseModel):
@@ -56,25 +59,28 @@ def create_app():
 
     @app.get("/")
     async def root():
-        from agents import list_available_providers
+        from agents import list_available_providers, list_team
         return {
             "service": "Dev Team Crew",
-            "version": "2.0.0",
-            "agents": [
-                {"name": "Researcher", "role": "Gathers info, explores options"},
-                {"name": "Architect", "role": "Designs system, creates plans"},
-                {"name": "Implementer", "role": "Writes production code"},
-                {"name": "Critic", "role": "Reviews for bugs, security, quality"},
-                {"name": "Tester", "role": "Writes tests, reports failures"},
-                {"name": "DevOps", "role": "Handles deployment and CI/CD"},
-            ],
+            "version": "3.0.0",
+            "team": list_team(),
             "llm_providers": list_available_providers(),
             "supported_providers": ["gemini", "groq", "openrouter", "huggingface", "openai", "anthropic"],
-            "status": "ready",
+            "multi_llm_tools": ["ask_llm", "ask_all_llms", "compare_llms", "list_available_llms"],
+            "status": "ready" if list_available_providers() else "needs_api_keys",
             "endpoints": {
+                "team": "GET /team",
                 "run": "POST /run",
                 "health": "GET /health",
             },
+        }
+
+    @app.get("/team")
+    async def get_team():
+        from agents import list_team, list_available_providers
+        return {
+            "team": list_team(),
+            "available_llms": list_available_providers(),
         }
 
     @app.get("/health")

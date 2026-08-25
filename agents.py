@@ -1,17 +1,19 @@
 """
 Agent definitions for the Dev Team Crew.
-Each agent has a primary LLM PLUS multi-LLM tools — every agent can call
-any other LLM provider on demand (ask_llm, ask_all_llms, compare_llms).
+Each agent is a CHARACTER — with personality, vibe, and working style.
+Designed like Elara's identity but tailored to each role.
+Every agent has a primary LLM + multi-LLM tools (ask_llm, ask_all_llms, compare_llms).
 """
 from crewai import Agent, LLM
 from crewai_tools import SerperDevTool, FileReadTool
 from supabase_tools import get_supabase_tools, is_supabase_configured
 from multi_llm_tools import get_multi_llm_tools, get_available_providers
+from agent_identities import AGENT_IDENTITIES
 import os
 
 
 # ═══════════════════════════════════════════════════════════
-# LLM PROVIDER FACTORY (for primary LLM)
+# LLM PROVIDER FACTORY
 # ═══════════════════════════════════════════════════════════
 
 def _make_gemini_llm():
@@ -40,12 +42,9 @@ def _make_anthropic_llm():
                api_key=os.getenv("ANTHROPIC_API_KEY"), temperature=0.7)
 
 LLM_PROVIDERS = {
-    "gemini": _make_gemini_llm,
-    "groq": _make_groq_llm,
-    "openrouter": _make_openrouter_llm,
-    "huggingface": _make_huggingface_llm,
-    "openai": _make_openai_llm,
-    "anthropic": _make_anthropic_llm,
+    "gemini": _make_gemini_llm, "groq": _make_groq_llm,
+    "openrouter": _make_openrouter_llm, "huggingface": _make_huggingface_llm,
+    "openai": _make_openai_llm, "anthropic": _make_anthropic_llm,
 }
 
 ENV_KEY_MAP = {
@@ -59,7 +58,6 @@ def _has_valid_key(provider: str) -> bool:
     return bool(val) and val not in ["", "your_gemini_api_key_here"]
 
 def get_llm(provider: str = None):
-    """Get an LLM instance by provider name. Auto-detects if none specified."""
     if provider and provider in LLM_PROVIDERS:
         if _has_valid_key(provider):
             return LLM_PROVIDERS[provider]()
@@ -68,15 +66,9 @@ def get_llm(provider: str = None):
         if _has_valid_key(name):
             print(f"🧠 Primary LLM: {name}")
             return factory()
-    raise ValueError(
-        "No LLM API key found! Set at least one in .env:\n"
-        "- GEMINI_API_KEY (free)\n- GROQ_API_KEY (free)\n"
-        "- OPENROUTER_API_KEY (free)\n- OPENAI_API_KEY (paid)\n"
-        "- ANTHROPIC_API_KEY (paid)"
-    )
+    raise ValueError("No LLM API key found!")
 
 def get_agent_llm(agent_name: str):
-    """Get the primary LLM for a specific agent based on env routing."""
     env_key = f"{agent_name.upper()}_LLM"
     provider = os.getenv(env_key, "").strip().lower()
     if provider:
@@ -89,37 +81,49 @@ def get_agent_llm(agent_name: str):
 # ═══════════════════════════════════════════════════════════
 
 def _get_agent_tools(agent_name: str = None):
-    """Build the tool list for an agent — always includes multi-LLM tools."""
     tools = []
-    # Research-oriented agents get web search + file read
     if agent_name in ["researcher", "architect", "critic"]:
         tools.append(SerperDevTool())
         tools.append(FileReadTool())
-    # ALL agents get Supabase tools if configured
     if is_supabase_configured():
         tools.extend(get_supabase_tools())
-    # ALL agents get multi-LLM tools — this is the key part
-    # Every agent can call any LLM: ask_llm, ask_all_llms, compare_llms, list_available_llms
     tools.extend(get_multi_llm_tools())
     return tools
 
 
+def _build_identity(agent_key: str):
+    """Pull the personality, backstory, and vibe from agent_identities."""
+    ident = AGENT_IDENTITIES.get(agent_key, {})
+    name = ident.get("name", agent_key.title())
+    personality = ident.get("personality", "")
+    working_style = ident.get("working_style", "")
+    catchphrase = ident.get("catchphrase", "")
+    vibe = ident.get("vibe", "")
+
+    backstory = (
+        f"{personality}\n\n"
+        f"Your working style: {working_style}\n\n"
+        f"Your vibe: {vibe}\n"
+        f"Your catchphrase: \"{catchphrase}\""
+    )
+    return name, backstory
+
+
 # ═══════════════════════════════════════════════════════════
-# AGENT DEFINITIONS — each has a primary LLM + multi-LLM tools
+# AGENT DEFINITIONS — each is a character with personality
 # ═══════════════════════════════════════════════════════════
 
 def create_researcher():
+    name, backstory = _build_identity("researcher")
     return Agent(
-        role="Researcher",
-        goal="Gather comprehensive information and provide well-researched context. "
-             "Use ask_all_llms to get diverse perspectives from all available AI models.",
-        backstory=(
-            "You are a meticulous researcher. You have access to MULTIPLE AI models "
-            "and can call any of them at any time using your tools. Use ask_llm to "
-            "query a specific model, ask_all_llms to get all models' opinions at once, "
-            "or compare_llms to see different approaches side by side. You also have "
-            "Supabase database access to store and retrieve research data."
+        role=f"Researcher ({name})",
+        goal=(
+            "Gather comprehensive information and provide well-researched context. "
+            "Use ask_all_llms to get diverse perspectives from all available AI models — "
+            "you're naturally curious and love consulting multiple experts. "
+            "Store your findings in Supabase for the team."
         ),
+        backstory=backstory,
         verbose=True,
         allow_delegation=False,
         llm=get_agent_llm("researcher"),
@@ -127,17 +131,16 @@ def create_researcher():
     )
 
 def create_architect():
+    name, backstory = _build_identity("architect")
     return Agent(
-        role="Architect",
-        goal="Design the system architecture. Use compare_llms to get multiple AI "
-             "perspectives on the best approach before deciding.",
-        backstory=(
-            "You are a senior software architect. You have access to MULTIPLE AI models "
-            "and can call any of them. Use compare_llms to get different models' "
-            "opinions on architecture decisions. Use ask_llm to consult a specific "
-            "model for a specific concern. You also have Supabase access to check "
-            "existing schemas and store architecture plans."
+        role=f"Architect ({name})",
+        goal=(
+            "Design the system architecture and break tasks into clear steps. "
+            "Use compare_llms to get multiple AI perspectives before deciding — "
+            "every decision is a trade-off and you want to see all angles. "
+            "Store architecture plans in Supabase."
         ),
+        backstory=backstory,
         verbose=True,
         allow_delegation=True,
         llm=get_agent_llm("architect"),
@@ -145,19 +148,16 @@ def create_architect():
     )
 
 def create_implementer():
+    name, backstory = _build_identity("implementer")
     return Agent(
-        role="Implementer",
-        goal="Write clean, production-ready code. Use ask_llm to consult different "
-             "models for different parts — e.g., ask Claude for complex logic and "
-             "GPT for API design.",
-        backstory=(
-            "You are a full-stack developer who writes production-quality code. "
-            "You have access to MULTIPLE AI models. Use ask_llm to get help from "
-            "specific models — e.g., call 'anthropic' for complex algorithms, "
-            "'openai' for API design, 'gemini' for documentation. Use ask_all_llms "
-            "for tricky problems where you want multiple approaches. You also have "
-            "Supabase access to store and retrieve code artifacts."
+        role=f"Implementer ({name})",
+        goal=(
+            "Write clean, production-ready code. Use ask_llm to consult different "
+            "models for different parts — Claude for complex logic, GPT for API "
+            "design, Gemini for quick scaffolding. You take pride in your craft. "
+            "Store code artifacts in Supabase."
         ),
+        backstory=backstory,
         verbose=True,
         allow_delegation=False,
         llm=get_agent_llm("implementer"),
@@ -165,17 +165,16 @@ def create_implementer():
     )
 
 def create_critic():
+    name, backstory = _build_identity("critic")
     return Agent(
-        role="Critic",
-        goal="Review code critically. Use ask_all_llms to get all models to review "
-             "the code independently, then synthesize their findings.",
-        backstory=(
-            "You are a strict but fair code reviewer. You have access to MULTIPLE AI "
-            "models. Use ask_all_llms to have all models independently review the code — "
-            "different models catch different bugs. Use compare_llms to compare security "
-            "assessments from different models. You also have Supabase access to verify "
-            "data integrity."
+        role=f"Critic ({name})",
+        goal=(
+            "Review code critically for bugs, security, and quality. "
+            "Use ask_all_llms to have every model independently review the code — "
+            "different models catch different bugs. Always provide a fix, "
+            "never just a complaint. Store review notes in Supabase."
         ),
+        backstory=backstory,
         verbose=True,
         allow_delegation=True,
         llm=get_agent_llm("critic"),
@@ -183,17 +182,16 @@ def create_critic():
     )
 
 def create_tester():
+    name, backstory = _build_identity("tester")
     return Agent(
-        role="Tester",
-        goal="Write comprehensive tests. Use ask_llm to get different models to "
-             "generate test cases — more models means more edge cases caught.",
-        backstory=(
-            "You are a QA engineer. You have access to MULTIPLE AI models. Use "
-            "ask_all_llms to get all models to suggest test cases — each model "
-            "thinks differently and catches different edge cases. Use ask_llm to "
-            "get a specific model's opinion on a tricky test scenario. You also "
-            "have Supabase access to set up and verify test data."
+        role=f"Tester ({name})",
+        goal=(
+            "Write comprehensive tests. Use ask_all_llms to get every model to "
+            "suggest test cases — each model thinks differently and catches "
+            "different edge cases. Report failures with clear steps. "
+            "Use Supabase for test data setup and cleanup."
         ),
+        backstory=backstory,
         verbose=True,
         allow_delegation=True,
         llm=get_agent_llm("tester"),
@@ -201,16 +199,15 @@ def create_tester():
     )
 
 def create_devops():
+    name, backstory = _build_identity("devops")
     return Agent(
-        role="DevOps Engineer",
-        goal="Handle deployment and infrastructure. Use ask_llm to consult different "
-             "models for Docker, CI/CD, and cloud config best practices.",
-        backstory=(
-            "You are a DevOps engineer. You have access to MULTIPLE AI models. Use "
-            "ask_llm to get specific advice — e.g., call 'openai' for Docker optimization, "
-            "'gemini' for CI/CD pipelines, 'anthropic' for security hardening. You also "
-            "have Supabase access to track deployment state."
+        role=f"DevOps Engineer ({name})",
+        goal=(
+            "Handle deployment, CI/CD, and infrastructure. Use ask_llm to consult "
+            "specific models — OpenAI for Docker, Gemini for CI/CD, Anthropic "
+            "for security. Automate everything. Track deployment state in Supabase."
         ),
+        backstory=backstory,
         verbose=True,
         allow_delegation=False,
         llm=get_agent_llm("devops"),
@@ -218,7 +215,7 @@ def create_devops():
     )
 
 def create_all_agents():
-    """Create and return all 6 agents, each with multi-LLM access."""
+    """Create and return all 6 agents — each a character with personality."""
     return {
         "researcher": create_researcher(),
         "architect": create_architect(),
@@ -229,5 +226,16 @@ def create_all_agents():
     }
 
 def list_available_providers():
-    """Check which LLM providers have valid API keys configured."""
     return get_available_providers()
+
+def list_team():
+    """List all team members with their identities."""
+    team = []
+    for key, ident in AGENT_IDENTITIES.items():
+        team.append({
+            "codename": ident["name"],
+            "role": key.title(),
+            "vibe": ident["vibe"],
+            "catchphrase": ident["catchphrase"],
+        })
+    return team
