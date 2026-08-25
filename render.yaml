@@ -12,3 +12,25 @@ services:
         sync: false
       - key: GEMINI_MODEL
         value: gemini-2.0-flash
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: SUPABASE_URL
+        value: https://hqmskhywllcyievplmsm.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: RESEARCHER_LLM
+        value: gemini
+      - key: ARCHITECT_LLM
+        value: groq
+      - key: IMPLEMENTER_LLM
+        value: gemini
+      - key: CRITIC_LLM
+        value: groq
+      - key: TESTER_LLM
+        value: gemini
+      - key: DEVOPS_LLM
+        value: groq
