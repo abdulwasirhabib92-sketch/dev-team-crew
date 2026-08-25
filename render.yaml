@@ -1,13 +1,13 @@
 services:
   - type: web
     name: dev-team-crew
-    runtime: python
-    env: python
+    runtime: docker
+    env: docker
     region: oregon
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    dockerfilePath: ./Dockerfile
     envVars:
+      # LLM Providers
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
@@ -16,21 +16,35 @@ services:
         sync: false
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-3-5-sonnet-20241022
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: HUGGINGFACE_API_KEY
+        sync: false
+      # Agent Routing — each agent uses a different LLM
+      - key: RESEARCHER_LLM
+        value: gemini
+      - key: ARCHITECT_LLM
+        value: openai
+      - key: IMPLEMENTER_LLM
+        value: anthropic
+      - key: CRITIC_LLM
+        value: openai
+      - key: TESTER_LLM
+        value: groq
+      - key: DEVOPS_LLM
+        value: gemini
+      # Supabase
       - key: SUPABASE_URL
         value: https://hqmskhywllcyievplmsm.supabase.co
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
       - key: SUPABASE_ANON_KEY
         sync: false
-      - key: RESEARCHER_LLM
-        value: gemini
-      - key: ARCHITECT_LLM
-        value: groq
-      - key: IMPLEMENTER_LLM
-        value: gemini
-      - key: CRITIC_LLM
-        value: groq
-      - key: TESTER_LLM
-        value: gemini
-      - key: DEVOPS_LLM
-        value: groq
