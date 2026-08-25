@@ -1,20 +1,139 @@
 """
 Agent definitions for the Dev Team Crew.
-Each agent has a distinct role, backstory, and set of tools.
+Each agent has a distinct role, backstory, and LLM provider.
+Supports multiple API providers: Gemini, Groq, OpenRouter, Hugging Face, OpenAI, Anthropic.
 """
 from crewai import Agent, LLM
 from crewai_tools import SerperDevTool, FileReadTool
 import os
 
 
-def get_llm():
-    """Create a Google Gemini LLM instance."""
+# ═══════════════════════════════════════════════════════════
+# LLM PROVIDER FACTORY
+# ═══════════════════════════════════════════════════════════
+
+def _make_gemini_llm():
     return LLM(
         model=f"gemini/{os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')}",
         api_key=os.getenv("GEMINI_API_KEY"),
         temperature=0.7,
     )
 
+
+def _make_groq_llm():
+    from langchain_groq import ChatGroq
+    return LLM(
+        model=f"groq/{os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')}",
+        api_key=os.getenv("GROQ_API_KEY"),
+        temperature=0.7,
+    )
+
+
+def _make_openrouter_llm():
+    return LLM(
+        model=f"openrouter/{os.getenv('OPENROUTER_MODEL', 'meta-llama/llama-3.1-8b-instruct:free')}",
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+        temperature=0.7,
+        base_url="https://openrouter.ai/api/v1",
+    )
+
+
+def _make_huggingface_llm():
+    return LLM(
+        model=f"huggingface/{os.getenv('HUGGINGFACE_MODEL', 'meta-llama/Llama-3.1-8B-Instruct')}",
+        api_key=os.getenv("HUGGINGFACE_API_KEY"),
+        temperature=0.7,
+    )
+
+
+def _make_openai_llm():
+    return LLM(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        api_key=os.getenv("OPENAI_API_KEY"),
+        temperature=0.7,
+    )
+
+
+def _make_anthropic_llm():
+    return LLM(
+        model=f"anthropic/{os.getenv('ANTHROPIC_MODEL', 'claude-3-5-sonnet-20241022')}",
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
+        temperature=0.7,
+    )
+
+
+# Registry of all available providers
+LLM_PROVIDERS = {
+    "gemini": _make_gemini_llm,
+    "groq": _make_groq_llm,
+    "openrouter": _make_openrouter_llm,
+    "huggingface": _make_huggingface_llm,
+    "openai": _make_openai_llm,
+    "anthropic": _make_anthropic_llm,
+}
+
+
+def get_llm(provider: str = None):
+    """
+    Get an LLM instance by provider name.
+    If no provider is specified, auto-detect the first available one.
+    """
+    if provider and provider in LLM_PROVIDERS:
+        key = provider.upper().replace("_", "") + "_API_KEY"
+        # Groq uses GROQ_API_KEY, check if it's set
+        env_key_map = {
+            "gemini": "GEMINI_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+            "huggingface": "HUGGINGFACE_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+        }
+        expected_key = env_key_map.get(provider, "")
+        if expected_key and os.getenv(expected_key) and os.getenv(expected_key) != "your_gemini_api_key_here":
+            return LLM_PROVIDERS[provider]()
+        else:
+            print(f"⚠️  {provider} API key not set, falling back to auto-detection")
+
+    # Auto-detect: find the first provider with a valid key
+    for name, factory in LLM_PROVIDERS.items():
+        env_key_map = {
+            "gemini": "GEMINI_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+            "huggingface": "HUGGINGFACE_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+        }
+        key = env_key_map.get(name, "")
+        if key and os.getenv(key) and os.getenv(key) not in ["", "your_gemini_api_key_here"]:
+            print(f"🧠 Using LLM provider: {name}")
+            return factory()
+
+    raise ValueError(
+        "No LLM API key found! Set at least one in .env:\n"
+        "- GEMINI_API_KEY (free: https://aistudio.google.com/apikey)\n"
+        "- GROQ_API_KEY (free: https://console.groq.com/keys)\n"
+        "- OPENROUTER_API_KEY (free: https://openrouter.ai/keys)\n"
+        "- HUGGINGFACE_API_KEY (free: https://huggingface.co/settings/tokens)"
+    )
+
+
+def get_agent_llm(agent_name: str):
+    """
+    Get the LLM for a specific agent based on env routing.
+    Falls back to auto-detection if no specific route is set.
+    """
+    env_key = f"{agent_name.upper()}_LLM"
+    provider = os.getenv(env_key, "").strip().lower()
+    if provider:
+        return get_llm(provider)
+    return get_llm()  # auto-detect
+
+
+# ═══════════════════════════════════════════════════════════
+# AGENT DEFINITIONS
+# ═══════════════════════════════════════════════════════════
 
 def create_researcher():
     """Gathers info, reads docs, explores options."""
@@ -30,7 +149,7 @@ def create_researcher():
         ),
         verbose=True,
         allow_delegation=False,
-        llm=get_llm(),
+        llm=get_agent_llm("researcher"),
         tools=[SerperDevTool(), FileReadTool()],
     )
 
@@ -49,7 +168,7 @@ def create_architect():
         ),
         verbose=True,
         allow_delegation=True,
-        llm=get_llm(),
+        llm=get_agent_llm("architect"),
     )
 
 
@@ -67,7 +186,7 @@ def create_implementer():
         ),
         verbose=True,
         allow_delegation=False,
-        llm=get_llm(),
+        llm=get_agent_llm("implementer"),
     )
 
 
@@ -85,7 +204,7 @@ def create_critic():
         ),
         verbose=True,
         allow_delegation=True,
-        llm=get_llm(),
+        llm=get_agent_llm("critic"),
     )
 
 
@@ -103,7 +222,7 @@ def create_tester():
         ),
         verbose=True,
         allow_delegation=True,
-        llm=get_llm(),
+        llm=get_agent_llm("tester"),
     )
 
 
@@ -120,7 +239,7 @@ def create_devops():
         ),
         verbose=True,
         allow_delegation=False,
-        llm=get_llm(),
+        llm=get_agent_llm("devops"),
     )
 
 
@@ -134,3 +253,21 @@ def create_all_agents():
         "tester": create_tester(),
         "devops": create_devops(),
     }
+
+
+def list_available_providers():
+    """Check which LLM providers have valid API keys configured."""
+    available = []
+    env_key_map = {
+        "gemini": "GEMINI_API_KEY",
+        "groq": "GROQ_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+        "huggingface": "HUGGINGFACE_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+    }
+    for name, key in env_key_map.items():
+        val = os.getenv(key, "")
+        if val and val not in ["", "your_gemini_api_key_here"]:
+            available.append(name)
+    return available

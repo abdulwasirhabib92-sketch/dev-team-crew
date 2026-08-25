@@ -1,5 +1,6 @@
 """
 Entry point — supports both CLI and web API modes.
+Multi-LLM: Gemini, Groq, OpenRouter, Hugging Face, OpenAI, Anthropic.
 
 CLI:  python main.py "Build a REST API for a todo app"
 API:  uvicorn main:app --host 0.0.0.0 --port $PORT
@@ -10,6 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 # ─── CLI Mode ──────────────────────────────────────────────────────────────
 def run_cli():
     if len(sys.argv) < 2:
@@ -19,6 +21,11 @@ def run_cli():
 
     topic = sys.argv[1]
     print(f"\n🚀 Starting Dev Team Crew for: {topic}\n")
+
+    # Show which providers are active
+    from agents import list_available_providers
+    available = list_available_providers()
+    print(f"🔧 Active LLM providers: {', '.join(available)}")
     print("=" * 60)
 
     from crew import DevTeamCrew
@@ -39,9 +46,9 @@ def create_app():
 
     app = FastAPI(
         title="Dev Team Crew API",
-        description="A 6-agent AI development team: Researcher, Architect, "
-                    "Implementer, Critic, Tester, DevOps",
-        version="1.0.0",
+        description="A 6-agent AI development team with multi-LLM support: "
+                    "Researcher, Architect, Implementer, Critic, Tester, DevOps",
+        version="2.0.0",
     )
 
     class TaskRequest(BaseModel):
@@ -49,12 +56,20 @@ def create_app():
 
     @app.get("/")
     async def root():
+        from agents import list_available_providers
         return {
             "service": "Dev Team Crew",
+            "version": "2.0.0",
             "agents": [
-                "Researcher", "Architect", "Implementer",
-                "Critic", "Tester", "DevOps Engineer"
+                {"name": "Researcher", "role": "Gathers info, explores options"},
+                {"name": "Architect", "role": "Designs system, creates plans"},
+                {"name": "Implementer", "role": "Writes production code"},
+                {"name": "Critic", "role": "Reviews for bugs, security, quality"},
+                {"name": "Tester", "role": "Writes tests, reports failures"},
+                {"name": "DevOps", "role": "Handles deployment and CI/CD"},
             ],
+            "llm_providers": list_available_providers(),
+            "supported_providers": ["gemini", "groq", "openrouter", "huggingface", "openai", "anthropic"],
             "status": "ready",
             "endpoints": {
                 "run": "POST /run",
