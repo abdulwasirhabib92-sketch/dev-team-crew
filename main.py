@@ -1,7 +1,7 @@
 """
-Entry point — supports both CLI and web API modes.
-Multi-LLM: each agent can call any/all LLM providers on demand.
-Each agent is a character with personality, vibe, and working style.
+Entry point — supports both CLI and web app modes.
+Web app serves a full dashboard UI + API.
+Each agent is a character with personality and can call any/all LLM providers.
 
 CLI:  python main.py "Build a REST API for a todo app"
 API:  uvicorn main:app --host 0.0.0.0 --port $PORT
@@ -42,17 +42,25 @@ def run_cli():
     return result
 
 
-# ─── Web API Mode ──────────────────────────────────────────────────────────
+# ─── Web App Mode ──────────────────────────────────────────────────────────
 def create_app():
     from fastapi import FastAPI
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
     from pydantic import BaseModel
+    import pathlib
 
     app = FastAPI(
-        title="Dev Team Crew API",
+        title="Dev Team Crew",
         description="A 6-agent AI dev team — each agent is a character with personality "
                     "and can call any/all LLM providers on demand.",
-        version="3.0.0",
+        version="4.0.0",
     )
+
+    # Serve static files (the dashboard UI)
+    static_dir = pathlib.Path(__file__).parent / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 
     class TaskRequest(BaseModel):
         topic: str
@@ -60,39 +68,55 @@ def create_app():
     @app.get("/")
     async def root():
         from agents import list_available_providers, list_team
+        static_index = static_dir / "index.html"
+        if static_index.exists():
+            return FileResponse(str(static_index))
         return {
-            "service": "Dev Team Crew",
-            "version": "3.0.0",
+            "service": "Dev Team Crew", "version": "4.0.0",
+            "team": list_team(), "llm_providers": list_available_providers(),
+            "status": "ready" if list_available_providers() else "needs_api_keys",
+        }
+
+    @app.get("/api/info")
+    async def info():
+        from agents import list_team, list_available_providers
+        return {
+            "service": "Dev Team Crew", "version": "4.0.0",
             "team": list_team(),
             "llm_providers": list_available_providers(),
             "supported_providers": ["gemini", "groq", "openrouter", "huggingface", "openai", "anthropic"],
             "multi_llm_tools": ["ask_llm", "ask_all_llms", "compare_llms", "list_available_llms"],
             "status": "ready" if list_available_providers() else "needs_api_keys",
-            "endpoints": {
-                "team": "GET /team",
-                "run": "POST /run",
-                "health": "GET /health",
-            },
         }
 
-    @app.get("/team")
+    @app.get("/api/team")
     async def get_team():
         from agents import list_team, list_available_providers
-        return {
-            "team": list_team(),
-            "available_llms": list_available_providers(),
-        }
+        return {"team": list_team(), "available_llms": list_available_providers()}
 
-    @app.get("/health")
+    @app.get("/api/health")
     async def health():
         return {"status": "healthy"}
 
-    @app.post("/run")
+    @app.post("/api/run")
     async def run_crew(req: TaskRequest):
         from crew import DevTeamCrew
         crew = DevTeamCrew(req.topic)
         result = crew.run()
         return {"topic": req.topic, "result": str(result)}
+
+    # Keep old endpoints for backward compat
+    @app.get("/team")
+    async def get_team_old():
+        return await get_team()
+
+    @app.get("/health")
+    async def health_old():
+        return await health()
+
+    @app.post("/run")
+    async def run_crew_old(req: TaskRequest):
+        return await run_crew(req)
 
     return app
 
