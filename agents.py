@@ -1,69 +1,44 @@
 """
 Agent definitions for the Dev Team Crew.
-Each agent has a distinct role, backstory, and LLM provider.
-Supports multiple API providers: Gemini, Groq, OpenRouter, Hugging Face, OpenAI, Anthropic.
-Supabase tools available for data operations.
+Each agent has a primary LLM PLUS multi-LLM tools — every agent can call
+any other LLM provider on demand (ask_llm, ask_all_llms, compare_llms).
 """
 from crewai import Agent, LLM
 from crewai_tools import SerperDevTool, FileReadTool
 from supabase_tools import get_supabase_tools, is_supabase_configured
+from multi_llm_tools import get_multi_llm_tools, get_available_providers
 import os
 
 
 # ═══════════════════════════════════════════════════════════
-# LLM PROVIDER FACTORY
+# LLM PROVIDER FACTORY (for primary LLM)
 # ═══════════════════════════════════════════════════════════
 
 def _make_gemini_llm():
-    return LLM(
-        model=f"gemini/{os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')}",
-        api_key=os.getenv("GEMINI_API_KEY"),
-        temperature=0.7,
-    )
-
+    return LLM(model=f"gemini/{os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')}",
+               api_key=os.getenv("GEMINI_API_KEY"), temperature=0.7)
 
 def _make_groq_llm():
-    return LLM(
-        model=f"groq/{os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')}",
-        api_key=os.getenv("GROQ_API_KEY"),
-        temperature=0.7,
-    )
-
+    return LLM(model=f"groq/{os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')}",
+               api_key=os.getenv("GROQ_API_KEY"), temperature=0.7)
 
 def _make_openrouter_llm():
-    return LLM(
-        model=f"openrouter/{os.getenv('OPENROUTER_MODEL', 'meta-llama/llama-3.1-8b-instruct:free')}",
-        api_key=os.getenv("OPENROUTER_API_KEY"),
-        temperature=0.7,
-        base_url="https://openrouter.ai/api/v1",
-    )
-
+    return LLM(model=f"openrouter/{os.getenv('OPENROUTER_MODEL', 'meta-llama/llama-3.1-8b-instruct:free')}",
+               api_key=os.getenv("OPENROUTER_API_KEY"), temperature=0.7,
+               base_url="https://openrouter.ai/api/v1")
 
 def _make_huggingface_llm():
-    return LLM(
-        model=f"huggingface/{os.getenv('HUGGINGFACE_MODEL', 'meta-llama/Llama-3.1-8B-Instruct')}",
-        api_key=os.getenv("HUGGINGFACE_API_KEY"),
-        temperature=0.7,
-    )
-
+    return LLM(model=f"huggingface/{os.getenv('HUGGINGFACE_MODEL', 'meta-llama/Llama-3.1-8B-Instruct')}",
+               api_key=os.getenv("HUGGINGFACE_API_KEY"), temperature=0.7)
 
 def _make_openai_llm():
-    return LLM(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-        api_key=os.getenv("OPENAI_API_KEY"),
-        temperature=0.7,
-    )
-
+    return LLM(model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+               api_key=os.getenv("OPENAI_API_KEY"), temperature=0.7)
 
 def _make_anthropic_llm():
-    return LLM(
-        model=f"anthropic/{os.getenv('ANTHROPIC_MODEL', 'claude-3-5-sonnet-20241022')}",
-        api_key=os.getenv("ANTHROPIC_API_KEY"),
-        temperature=0.7,
-    )
+    return LLM(model=f"anthropic/{os.getenv('ANTHROPIC_MODEL', 'claude-3-5-sonnet-20241022')}",
+               api_key=os.getenv("ANTHROPIC_API_KEY"), temperature=0.7)
 
-
-# Registry of all available providers
 LLM_PROVIDERS = {
     "gemini": _make_gemini_llm,
     "groq": _make_groq_llm,
@@ -73,22 +48,15 @@ LLM_PROVIDERS = {
     "anthropic": _make_anthropic_llm,
 }
 
-# Map of env var names for each provider's API key
 ENV_KEY_MAP = {
-    "gemini": "GEMINI_API_KEY",
-    "groq": "GROQ_API_KEY",
-    "openrouter": "OPENROUTER_API_KEY",
-    "huggingface": "HUGGINGFACE_API_KEY",
-    "openai": "OPENAI_API_KEY",
-    "anthropic": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY", "groq": "GROQ_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY", "huggingface": "HUGGINGFACE_API_KEY",
+    "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY",
 }
 
-
 def _has_valid_key(provider: str) -> bool:
-    key = ENV_KEY_MAP.get(provider, "")
-    val = os.getenv(key, "")
+    val = os.getenv(ENV_KEY_MAP.get(provider, ""), "")
     return bool(val) and val not in ["", "your_gemini_api_key_here"]
-
 
 def get_llm(provider: str = None):
     """Get an LLM instance by provider name. Auto-detects if none specified."""
@@ -96,23 +64,19 @@ def get_llm(provider: str = None):
         if _has_valid_key(provider):
             return LLM_PROVIDERS[provider]()
         print(f"⚠️  {provider} API key not set, falling back to auto-detection")
-
     for name, factory in LLM_PROVIDERS.items():
         if _has_valid_key(name):
-            print(f"🧠 Using LLM provider: {name}")
+            print(f"🧠 Primary LLM: {name}")
             return factory()
-
     raise ValueError(
         "No LLM API key found! Set at least one in .env:\n"
-        "- GEMINI_API_KEY (free: https://aistudio.google.com/apikey)\n"
-        "- GROQ_API_KEY (free: https://console.groq.com/keys)\n"
-        "- OPENROUTER_API_KEY (free: https://openrouter.ai/keys)\n"
-        "- HUGGINGFACE_API_KEY (free: https://huggingface.co/settings/tokens)"
+        "- GEMINI_API_KEY (free)\n- GROQ_API_KEY (free)\n"
+        "- OPENROUTER_API_KEY (free)\n- OPENAI_API_KEY (paid)\n"
+        "- ANTHROPIC_API_KEY (paid)"
     )
 
-
 def get_agent_llm(agent_name: str):
-    """Get the LLM for a specific agent based on env routing."""
+    """Get the primary LLM for a specific agent based on env routing."""
     env_key = f"{agent_name.upper()}_LLM"
     provider = os.getenv(env_key, "").strip().lower()
     if provider:
@@ -120,33 +84,41 @@ def get_agent_llm(agent_name: str):
     return get_llm()
 
 
+# ═══════════════════════════════════════════════════════════
+# TOOL ASSEMBLY — every agent gets multi-LLM tools
+# ═══════════════════════════════════════════════════════════
+
 def _get_agent_tools(agent_name: str = None):
-    """Build the tool list for an agent."""
+    """Build the tool list for an agent — always includes multi-LLM tools."""
     tools = []
     # Research-oriented agents get web search + file read
     if agent_name in ["researcher", "architect", "critic"]:
         tools.append(SerperDevTool())
         tools.append(FileReadTool())
-    # All agents get Supabase tools if configured
+    # ALL agents get Supabase tools if configured
     if is_supabase_configured():
         tools.extend(get_supabase_tools())
+    # ALL agents get multi-LLM tools — this is the key part
+    # Every agent can call any LLM: ask_llm, ask_all_llms, compare_llms, list_available_llms
+    tools.extend(get_multi_llm_tools())
     return tools
 
 
 # ═══════════════════════════════════════════════════════════
-# AGENT DEFINITIONS
+# AGENT DEFINITIONS — each has a primary LLM + multi-LLM tools
 # ═══════════════════════════════════════════════════════════
 
 def create_researcher():
     return Agent(
         role="Researcher",
-        goal="Gather comprehensive information, explore options, and provide "
-        "well-researched context for the team to make informed decisions.",
+        goal="Gather comprehensive information and provide well-researched context. "
+             "Use ask_all_llms to get diverse perspectives from all available AI models.",
         backstory=(
-            "You are a meticulous researcher with years of experience in software "
-            "development. You excel at finding the right documentation, comparing "
-            "technologies, and presenting findings in a clear, structured way. "
-            "You can also query the Supabase database to understand existing data "
+            "You are a meticulous researcher. You have access to MULTIPLE AI models "
+            "and can call any of them at any time using your tools. Use ask_llm to "
+            "query a specific model, ask_all_llms to get all models' opinions at once, "
+            "or compare_llms to see different approaches side by side. You also have "
+            "Supabase database access to store and retrieve research data."
         ),
         verbose=True,
         allow_delegation=False,
@@ -154,16 +126,17 @@ def create_researcher():
         tools=_get_agent_tools("researcher"),
     )
 
-
 def create_architect():
     return Agent(
         role="Architect",
-        goal="Design the overall system architecture, break tasks into actionable "
-        "steps, and define the best technical approach for the team.",
+        goal="Design the system architecture. Use compare_llms to get multiple AI "
+             "perspectives on the best approach before deciding.",
         backstory=(
-            "You are a senior software architect with 15+ years of experience. "
-            "You think in terms of trade-offs, scalability, and maintainability. "
-            "You can query Supabase to check existing schemas and plan accordingly."
+            "You are a senior software architect. You have access to MULTIPLE AI models "
+            "and can call any of them. Use compare_llms to get different models' "
+            "opinions on architecture decisions. Use ask_llm to consult a specific "
+            "model for a specific concern. You also have Supabase access to check "
+            "existing schemas and store architecture plans."
         ),
         verbose=True,
         allow_delegation=True,
@@ -171,16 +144,19 @@ def create_architect():
         tools=_get_agent_tools("architect"),
     )
 
-
 def create_implementer():
     return Agent(
         role="Implementer",
-        goal="Write clean, efficient, well-documented code that follows the "
-        "architecture plan and implements the required features.",
+        goal="Write clean, production-ready code. Use ask_llm to consult different "
+             "models for different parts — e.g., ask Claude for complex logic and "
+             "GPT for API design.",
         backstory=(
             "You are a full-stack developer who writes production-quality code. "
-            "You can use Supabase tools to store and retrieve project data, "
-            "manage database records, and persist work across the team."
+            "You have access to MULTIPLE AI models. Use ask_llm to get help from "
+            "specific models — e.g., call 'anthropic' for complex algorithms, "
+            "'openai' for API design, 'gemini' for documentation. Use ask_all_llms "
+            "for tricky problems where you want multiple approaches. You also have "
+            "Supabase access to store and retrieve code artifacts."
         ),
         verbose=True,
         allow_delegation=False,
@@ -188,16 +164,17 @@ def create_implementer():
         tools=_get_agent_tools("implementer"),
     )
 
-
 def create_critic():
     return Agent(
         role="Critic",
-        goal="Review code and plans critically, identify bugs, edge cases, "
-        "security issues, and areas for improvement before anything ships.",
+        goal="Review code critically. Use ask_all_llms to get all models to review "
+             "the code independently, then synthesize their findings.",
         backstory=(
-            "You are a strict but fair code reviewer. You focus on correctness, "
-            "security, performance, and code quality. You can query Supabase "
-            "to verify data integrity and check for consistency."
+            "You are a strict but fair code reviewer. You have access to MULTIPLE AI "
+            "models. Use ask_all_llms to have all models independently review the code — "
+            "different models catch different bugs. Use compare_llms to compare security "
+            "assessments from different models. You also have Supabase access to verify "
+            "data integrity."
         ),
         verbose=True,
         allow_delegation=True,
@@ -205,16 +182,17 @@ def create_critic():
         tools=_get_agent_tools("critic"),
     )
 
-
 def create_tester():
     return Agent(
         role="Tester",
-        goal="Write comprehensive tests covering unit, integration, and edge "
-        "cases. Report failures clearly so the Implementer can fix them.",
+        goal="Write comprehensive tests. Use ask_llm to get different models to "
+             "generate test cases — more models means more edge cases caught.",
         backstory=(
-            "You are a QA engineer who believes tests are as important as the "
-            "code itself. You can use Supabase to set up test data, verify "
-            "database operations, and clean up after tests."
+            "You are a QA engineer. You have access to MULTIPLE AI models. Use "
+            "ask_all_llms to get all models to suggest test cases — each model "
+            "thinks differently and catches different edge cases. Use ask_llm to "
+            "get a specific model's opinion on a tricky test scenario. You also "
+            "have Supabase access to set up and verify test data."
         ),
         verbose=True,
         allow_delegation=True,
@@ -222,17 +200,16 @@ def create_tester():
         tools=_get_agent_tools("tester"),
     )
 
-
 def create_devops():
     return Agent(
         role="DevOps Engineer",
-        goal="Handle deployment, CI/CD pipelines, environment setup, and "
-        "infrastructure so the team's code runs reliably in production.",
+        goal="Handle deployment and infrastructure. Use ask_llm to consult different "
+             "models for Docker, CI/CD, and cloud config best practices.",
         backstory=(
-            "You are a DevOps engineer who has deployed hundreds of services. "
-            "You know Docker, CI/CD, cloud platforms, and monitoring inside out. "
-            "You can use Supabase to manage deployment configs and track "
-            "infrastructure state in the database."
+            "You are a DevOps engineer. You have access to MULTIPLE AI models. Use "
+            "ask_llm to get specific advice — e.g., call 'openai' for Docker optimization, "
+            "'gemini' for CI/CD pipelines, 'anthropic' for security hardening. You also "
+            "have Supabase access to track deployment state."
         ),
         verbose=True,
         allow_delegation=False,
@@ -240,9 +217,8 @@ def create_devops():
         tools=_get_agent_tools("devops"),
     )
 
-
 def create_all_agents():
-    """Create and return all 6 agents as a dictionary."""
+    """Create and return all 6 agents, each with multi-LLM access."""
     return {
         "researcher": create_researcher(),
         "architect": create_architect(),
@@ -252,11 +228,6 @@ def create_all_agents():
         "devops": create_devops(),
     }
 
-
 def list_available_providers():
     """Check which LLM providers have valid API keys configured."""
-    available = []
-    for name in ENV_KEY_MAP:
-        if _has_valid_key(name):
-            available.append(name)
-    return available
+    return get_available_providers()
