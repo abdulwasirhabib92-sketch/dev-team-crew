@@ -7,197 +7,117 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --bg: #0a0e1a;
-            --surface: #131829;
-            --surface2: #1a2138;
-            --border: #2a3252;
-            --text: #e4e8f0;
-            --text-dim: #8892b8;
-            --accent: #6c5ce7;
-            --accent2: #00cec9;
-            --success: #00b894;
-            --warning: #fdcb6e;
-            --danger: #e17055;
+            --bg: #0a0e1a; --surface: #131829; --surface2: #1a2138;
+            --border: #2a3252; --text: #e4e8f0; --text-dim: #8892b8;
+            --accent: #6c5ce7; --accent2: #00cec9; --success: #00b894;
+            --warning: #fdcb6e; --danger: #e17055; --cn: #ff6b6b;
         }
-        body {
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            min-height: 100vh;
-        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
 
-        /* Header */
-        header {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 20px 0; border-bottom: 1px solid var(--border); margin-bottom: 30px;
-        }
+        header { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; border-bottom: 1px solid var(--border); margin-bottom: 30px; }
         .logo { display: flex; align-items: center; gap: 12px; }
-        .logo-icon {
-            width: 44px; height: 44px; border-radius: 12px;
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
-            display: flex; align-items: center; justify-content: center;
-            font-size: 22px;
-        }
-        .logo h1 { font-size: 20px; font-weight: 700; }
-        .logo p { font-size: 12px; color: var(--text-dim); }
-        .status-badge {
-            padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
-            display: flex; align-items: center; gap: 6px;
-        }
+        .logo-icon { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, var(--accent), var(--accent2)); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+        .logo h1 { font-size: 20px; font-weight: 700; } .logo p { font-size: 12px; color: var(--text-dim); }
+        .status-badge { padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
         .status-ready { background: rgba(0,184,148,0.15); color: var(--success); border: 1px solid var(--success); }
         .status-loading { background: rgba(253,203,110,0.15); color: var(--warning); }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-        /* Provider chips */
-        .providers { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 30px; }
-        .provider-chip {
-            padding: 6px 14px; border-radius: 20px; font-size: 13px;
-            background: var(--surface); border: 1px solid var(--border);
-            display: flex; align-items: center; gap: 6px;
-        }
-        .provider-chip.active { border-color: var(--success); color: var(--success); }
-        .provider-chip.inactive { opacity: 0.4; }
+        .section-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Provider grid */
+        .providers-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 30px; }
+        .provider-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; transition: border-color 0.2s; }
+        .provider-card.active { border-color: var(--success); }
+        .provider-card.inactive { opacity: 0.5; }
+        .provider-card.cn { border-left: 3px solid var(--cn); }
+        .provider-card.cn.active { border-color: var(--cn); }
+        .provider-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .provider-meta { font-size: 11px; color: var(--text-dim); display: flex; gap: 8px; align-items: center; }
+        .provider-tag { padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+        .tag-free { background: rgba(0,184,148,0.15); color: var(--success); }
+        .tag-paid { background: rgba(253,203,110,0.15); color: var(--warning); }
+        .tag-cn { background: rgba(255,107,107,0.15); color: var(--cn); }
+        .tag-us { background: rgba(0,206,201,0.15); color: var(--accent2); }
+        .provider-status { font-size: 12px; margin-top: 6px; }
+        .provider-status.on { color: var(--success); }
+        .provider-status.off { color: var(--text-dim); }
 
         /* Task input */
-        .task-card {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 16px; padding: 24px; margin-bottom: 30px;
-        }
+        .task-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 30px; }
         .task-card h2 { font-size: 18px; margin-bottom: 16px; }
         .task-input-row { display: flex; gap: 12px; }
-        .task-input {
-            flex: 1; padding: 14px 18px; border-radius: 12px;
-            background: var(--surface2); border: 1px solid var(--border);
-            color: var(--text); font-size: 15px; outline: none; transition: border-color 0.2s;
-        }
-        .task-input:focus { border-color: var(--accent); }
-        .task-input::placeholder { color: var(--text-dim); }
-        .btn-primary {
-            padding: 14px 28px; border-radius: 12px; border: none; cursor: pointer;
-            background: linear-gradient(135deg, var(--accent), var(--accent2));
-            color: white; font-size: 15px; font-weight: 600; transition: transform 0.1s, opacity 0.2s;
-        }
-        .btn-primary:hover { opacity: 0.9; }
-        .btn-primary:active { transform: scale(0.98); }
-        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .task-input { flex: 1; padding: 14px 18px; border-radius: 12px; background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 15px; outline: none; transition: border-color 0.2s; }
+        .task-input:focus { border-color: var(--accent); } .task-input::placeholder { color: var(--text-dim); }
+        .btn-primary { padding: 14px 28px; border-radius: 12px; border: none; cursor: pointer; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; font-size: 15px; font-weight: 600; transition: transform 0.1s, opacity 0.2s; }
+        .btn-primary:hover { opacity: 0.9; } .btn-primary:active { transform: scale(0.98); } .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* Team grid */
-        .section-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
-        .team-grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 16px; margin-bottom: 30px;
-        }
-        .agent-card {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 16px; padding: 20px; transition: border-color 0.2s, transform 0.2s;
-        }
+        .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 30px; }
+        .agent-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px; transition: border-color 0.2s, transform 0.2s; }
         .agent-card:hover { border-color: var(--accent); transform: translateY(-2px); }
         .agent-header { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
-        .agent-avatar {
-            width: 48px; height: 48px; border-radius: 14px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 24px;
-        }
-        .agent-name { font-size: 17px; font-weight: 700; }
-        .agent-role { font-size: 12px; color: var(--text-dim); }
+        .agent-avatar { width: 48px; height: 48px; border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+        .agent-name { font-size: 17px; font-weight: 700; } .agent-role { font-size: 12px; color: var(--text-dim); }
         .agent-vibe { font-size: 13px; color: var(--text-dim); margin-bottom: 12px; line-height: 1.5; }
-        .agent-catchphrase {
-            font-size: 13px; font-style: italic; padding: 10px 14px;
-            background: var(--surface2); border-radius: 10px;
-            border-left: 3px solid var(--accent); color: var(--text);
-        }
+        .agent-catchphrase { font-size: 13px; font-style: italic; padding: 10px 14px; background: var(--surface2); border-radius: 10px; border-left: 3px solid var(--accent); }
 
         /* Results */
-        .results-card {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 16px; padding: 24px; margin-bottom: 30px; display: none;
-        }
+        .results-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 30px; display: none; }
         .results-card.show { display: block; }
         .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .results-header h2 { font-size: 18px; }
-        .spinner {
-            width: 20px; height: 20px; border: 3px solid var(--border);
-            border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;
-        }
+        .spinner { width: 20px; height: 20px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .results-body {
-            background: var(--surface2); border-radius: 12px; padding: 20px;
-            font-size: 14px; line-height: 1.6; white-space: pre-wrap; max-height: 500px; overflow-y: auto;
-        }
-        .results-body code { font-family: 'Courier New', monospace; }
+        .results-body { background: var(--surface2); border-radius: 12px; padding: 20px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; max-height: 500px; overflow-y: auto; }
 
-        /* Task history */
-        .history-item {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 12px; padding: 16px; margin-bottom: 10px;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .history-item .topic { font-size: 14px; font-weight: 500; }
-        .history-item .time { font-size: 12px; color: var(--text-dim); }
+        .history-item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .history-item .topic { font-size: 14px; font-weight: 500; } .history-item .time { font-size: 12px; color: var(--text-dim); }
 
-        /* Responsive */
-        @media (max-width: 600px) {
-            .task-input-row { flex-direction: column; }
-            .team-grid { grid-template-columns: 1fr; }
-        }
+        @media (max-width: 600px) { .task-input-row { flex-direction: column; } .team-grid { grid-template-columns: 1fr; } .providers-grid { grid-template-columns: 1fr 1fr; } }
     </style>
 </head>
 <body>
 <div class="container">
-    <!-- Header -->
     <header>
         <div class="logo">
             <div class="logo-icon">🚀</div>
-            <div>
-                <h1>Dev Team Crew</h1>
-                <p>6 AI agents · multi-LLM · powered by CrewAI</p>
-            </div>
+            <div><h1>Dev Team Crew</h1><p>6 AI agents · 11 LLM providers · West + East 🌍</p></div>
         </div>
         <div class="status-badge status-loading" id="statusBadge">
-            <span class="status-dot"></span>
-            <span id="statusText">Connecting...</span>
+            <span class="status-dot"></span><span id="statusText">Connecting...</span>
         </div>
     </header>
 
-    <!-- Provider chips -->
-    <div class="providers" id="providers"></div>
+    <div class="section-title">LLM Providers (11 supported)</div>
+    <div class="providers-grid" id="providersGrid"></div>
 
-    <!-- Task input -->
     <div class="task-card">
         <h2>📋 Assign a Task</h2>
         <div class="task-input-row">
-            <input type="text" class="task-input" id="taskInput"
-                placeholder="e.g. Build a REST API for a todo app with auth..." />
+            <input type="text" class="task-input" id="taskInput" placeholder="e.g. Build a REST API for a todo app with auth..." />
             <button class="btn-primary" id="runBtn" onclick="runTask()">Deploy Team</button>
         </div>
     </div>
 
-    <!-- Results -->
     <div class="results-card" id="resultsCard">
-        <div class="results-header">
-            <h2>📝 Team Output</h2>
-            <div id="resultsSpinner"></div>
-        </div>
+        <div class="results-header"><h2>📝 Team Output</h2><div id="resultsSpinner"></div></div>
         <div class="results-body" id="resultsBody"></div>
     </div>
 
-    <!-- Team -->
     <div class="section-title">The Team</div>
     <div class="team-grid" id="teamGrid"></div>
 
-    <!-- History -->
     <div class="section-title" id="historyTitle" style="display:none;">Recent Tasks</div>
     <div id="history"></div>
 </div>
 
 <script>
 const API_BASE = window.location.origin;
-let teamData = [];
-let providers = [];
+let allProviders = [];
 
-// Avatar emojis for each agent
 const AVATARS = {
     researcher: { emoji: '🔍', color: '#6c5ce7' },
     architect: { emoji: '🏗️', color: '#00cec9' },
@@ -209,54 +129,43 @@ const AVATARS = {
 
 async function init() {
     try {
-        const res = await fetch(`${API_BASE}/`);
+        const res = await fetch(`${API_BASE}/api/info`);
         const data = await res.json();
-        teamData = data.team || [];
-        providers = data.llm_providers || [];
+        allProviders = data.all_providers || [];
 
-        // Update status
         const badge = document.getElementById('statusBadge');
         const statusText = document.getElementById('statusText');
-        if (data.status === 'ready') {
-            badge.className = 'status-badge status-ready';
-            statusText.textContent = 'Ready';
-        } else {
-            badge.className = 'status-badge status-loading';
-            statusText.textContent = 'Needs API Keys';
-        }
+        if (data.status === 'ready') { badge.className = 'status-badge status-ready'; statusText.textContent = `${data.llm_providers.length} LLMs Active`; }
+        else { badge.className = 'status-badge status-loading'; statusText.textContent = 'Needs API Keys'; }
 
-        // Render providers
-        const allProviders = ['gemini', 'groq', 'openai', 'anthropic', 'openrouter', 'huggingface'];
-        const providersEl = document.getElementById('providers');
-        providersEl.innerHTML = allProviders.map(p => {
-            const active = providers.includes(p);
-            return `<div class="provider-chip ${active ? 'active' : 'inactive'}">
-                ${active ? '✅' : '⚪'} ${p}
-            </div>`;
-        }).join('');
-
-        // Render team
-        renderTeam();
-    } catch (e) {
-        document.getElementById('statusText').textContent = 'Offline';
-    }
+        renderProviders();
+        renderTeam(data.team || []);
+    } catch (e) { document.getElementById('statusText').textContent = 'Offline'; }
 }
 
-function renderTeam() {
+function renderProviders() {
+    const grid = document.getElementById('providersGrid');
+    grid.innerHTML = allProviders.map(p => {
+        const tags = [];
+        tags.push(p.free ? '<span class="provider-tag tag-free">FREE</span>' : '<span class="provider-tag tag-paid">PAID</span>');
+        tags.push(p.region === 'CN' ? '<span class="provider-tag tag-cn">🇨🇳 CN</span>' : '<span class="provider-tag tag-us">🇺🇸 US</span>');
+        return `<div class="provider-card ${p.active ? 'active' : 'inactive'} ${p.region === 'CN' ? 'cn' : ''}">
+            <div class="provider-name">${p.name}</div>
+            <div class="provider-meta">${tags.join('')}</div>
+            <div class="provider-status ${p.active ? 'on' : 'off'}">${p.active ? '✅ Active' : '⚪ Inactive'}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderTeam(team) {
     const grid = document.getElementById('teamGrid');
-    grid.innerHTML = teamData.map(member => {
+    grid.innerHTML = team.map(member => {
         const key = member.role.toLowerCase();
         const avatar = AVATARS[key] || { emoji: '🤖', color: '#6c5ce7' };
-        return `
-        <div class="agent-card">
+        return `<div class="agent-card">
             <div class="agent-header">
-                <div class="agent-avatar" style="background: ${avatar.color}22; border: 1px solid ${avatar.color};">
-                    ${avatar.emoji}
-                </div>
-                <div>
-                    <div class="agent-name">${member.codename}</div>
-                    <div class="agent-role">${member.role}</div>
-                </div>
+                <div class="agent-avatar" style="background: ${avatar.color}22; border: 1px solid ${avatar.color};">${avatar.emoji}</div>
+                <div><div class="agent-name">${member.codename}</div><div class="agent-role">${member.role}</div></div>
             </div>
             <div class="agent-vibe">${member.vibe}</div>
             <div class="agent-catchphrase">"${member.catchphrase}"</div>
@@ -269,36 +178,19 @@ async function runTask() {
     const btn = document.getElementById('runBtn');
     const topic = input.value.trim();
     if (!topic) return;
-
-    btn.disabled = true;
-    btn.textContent = 'Running...';
-
+    btn.disabled = true; btn.textContent = 'Running...';
     const card = document.getElementById('resultsCard');
     const body = document.getElementById('resultsBody');
     const spinner = document.getElementById('resultsSpinner');
-    card.classList.add('show');
-    spinner.innerHTML = '<div class="spinner"></div>';
-    body.textContent = '⏳ The team is assembling and working on your task...\n\nThis may take 1-3 minutes. Each agent will use multiple LLMs to complete their part.';
-
+    card.classList.add('show'); spinner.innerHTML = '<div class="spinner"></div>';
+    body.textContent = '⏳ The team is assembling and working on your task...\n\nThis may take 1-3 minutes. Each agent uses multiple LLMs (US + Chinese) to complete their part.';
     try {
-        const res = await fetch(`${API_BASE}/run`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topic }),
-        });
+        const res = await fetch(`${API_BASE}/api/run`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic }) });
         const data = await res.json();
-        spinner.innerHTML = '✅';
-        body.textContent = data.result || 'Task completed with no output.';
-
-        // Add to history
+        spinner.innerHTML = '✅'; body.textContent = data.result || 'Task completed.';
         addHistory(topic);
-    } catch (e) {
-        spinner.innerHTML = '❌';
-        body.textContent = `Error: ${e.message}\n\nThe team might still be processing. Check back in a moment.`;
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Deploy Team';
-    }
+    } catch (e) { spinner.innerHTML = '❌'; body.textContent = `Error: ${e.message}`; }
+    finally { btn.disabled = false; btn.textContent = 'Deploy Team'; }
 }
 
 function addHistory(topic) {
@@ -312,12 +204,7 @@ function addHistory(topic) {
     historyEl.prepend(item);
 }
 
-// Enter key submits
-document.getElementById('taskInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') runTask();
-});
-
-// Init on load
+document.getElementById('taskInput').addEventListener('keypress', (e) => { if (e.key === 'Enter') runTask(); });
 init();
 </script>
 </body>

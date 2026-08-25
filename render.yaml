@@ -7,7 +7,7 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     envVars:
-      # LLM Providers
+      # ─── Western LLM Providers ─────────────────────────
       - key: GEMINI_API_KEY
         sync: false
       - key: GEMINI_MODEL
@@ -28,7 +28,28 @@ services:
         sync: false
       - key: HUGGINGFACE_API_KEY
         sync: false
-      # Agent Routing — each agent uses a different LLM
+      # ─── Chinese LLM Providers (all free) ───────────────
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DEEPSEEK_MODEL
+        value: deepseek-chat
+      - key: SILICONFLOW_API_KEY
+        sync: false
+      - key: SILICONFLOW_MODEL
+        value: Qwen/Qwen2.5-7B-Instruct
+      - key: QWEN_API_KEY
+        sync: false
+      - key: QWEN_MODEL
+        value: qwen-turbo
+      - key: GLM_API_KEY
+        sync: false
+      - key: GLM_MODEL
+        value: glm-4-flash
+      - key: MOONSHOT_API_KEY
+        sync: false
+      - key: MOONSHOT_MODEL
+        value: moonshot-v1-8k
+      # ─── Agent Routing ─────────────────────────────────
       - key: RESEARCHER_LLM
         value: gemini
       - key: ARCHITECT_LLM
@@ -41,7 +62,7 @@ services:
         value: groq
       - key: DEVOPS_LLM
         value: gemini
-      # Supabase
+      # ─── Supabase ──────────────────────────────────────
       - key: SUPABASE_URL
         value: https://hqmskhywllcyievplmsm.supabase.co
       - key: SUPABASE_SERVICE_ROLE_KEY
