@@ -26,7 +26,7 @@ def run_cli():
     print(f"\n🚀 Dev Team Crew assembling for: {topic}\n")
     from agents import list_available_providers, list_team
     available = list_available_providers()
-    print(f"🔧 Active LLM providers ({len(available)}): {', '.join(available)}}")
+    print(f"🔧 Active LLM providers ({len(available)}): {', '.join(available)}")
     print("=" * 60)
     print("👥 The Team:")
     for member in list_team():

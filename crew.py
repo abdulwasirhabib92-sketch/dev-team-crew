@@ -22,7 +22,7 @@ class DevTeamCrew:
                 "Free options: Gemini, Groq, OpenRouter, Hugging Face, "
                 "DeepSeek, SiliconFlow, Qwen, GLM, Moonshot"
             )
-        print(f"🔧 Available LLM providers: {', '.join(available)}}")
+        print(f"🔧 Available LLM providers: {', '.join(available)}")
         self.agents = create_all_agents()
         self.tasks = create_all_tasks(topic, self.agents)
 
