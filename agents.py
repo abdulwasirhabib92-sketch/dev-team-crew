@@ -21,7 +21,7 @@ def _make_gemini_llm():
                api_key=os.getenv("GEMINI_API_KEY"), temperature=0.7)
 
 def _make_groq_llm():
-    return LLM(model=f"groq/{os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile')}",
+    return LLM(model=f"groq/{os.getenv('GROQ_MODEL', 'openai/gpt-oss-120b')}",
                api_key=os.getenv("GROQ_API_KEY"), temperature=0.7)
 
 def _make_openrouter_llm():

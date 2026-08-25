@@ -43,7 +43,7 @@ def _call_groq(prompt: str, system: str = "") -> str:
     api_key = os.getenv("GROQ_API_KEY", "")
     if not api_key:
         return "Groq API key not configured"
-    model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+    model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     url = "https://api.groq.com/openai/v1/chat/completions"
     messages = []
     if system:
