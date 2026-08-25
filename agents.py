@@ -17,7 +17,7 @@ import os
 # ═══════════════════════════════════════════════════════════
 
 def _make_gemini_llm():
-    return LLM(model=f"gemini/{os.getenv('GEMINI_MODEL', 'gemini-2.0-flash')}",
+    return LLM(model=f"gemini/{os.getenv('GEMINI_MODEL', 'gemini-3.6-flash')}",
                api_key=os.getenv("GEMINI_API_KEY"), temperature=0.7)
 
 def _make_groq_llm():
