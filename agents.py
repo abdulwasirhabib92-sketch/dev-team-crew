@@ -11,6 +11,11 @@ from multi_llm_tools import get_multi_llm_tools, get_available_providers, get_pr
 from agent_identities import AGENT_IDENTITIES
 import os
 import logging
+import litellm
+
+# Disable prompt caching — Groq doesn't support cache_breakpoint
+litellm.disable_caching = True
+litellm.suppress_debug_info = True
 
 logger = logging.getLogger(__name__)
 
