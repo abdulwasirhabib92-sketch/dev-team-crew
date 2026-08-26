@@ -1,9 +1,8 @@
 """
 Agent definitions for the Dev Team Crew.
 Each agent is a CHARACTER — with personality, vibe, and working style.
-Designed like Elara's identity but tailored to each role.
-Every agent has a primary LLM + multi-LLM tools (ask_llm, ask_all_llms, compare_llms).
-Supports 11 LLM providers: 6 Western + 5 Chinese.
+11 LLM providers: 6 Western + 5 Chinese.
+Smart fallback: if a provider hits rate limits, automatically tries the next.
 """
 from crewai import Agent, LLM
 from crewai_tools import SerperDevTool, FileReadTool
@@ -11,6 +10,9 @@ from supabase_tools import get_supabase_tools, is_supabase_configured
 from multi_llm_tools import get_multi_llm_tools, get_available_providers, get_provider_info
 from agent_identities import AGENT_IDENTITIES
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -42,11 +44,9 @@ def _make_anthropic_llm():
     return LLM(model=f"anthropic/{os.getenv('ANTHROPIC_MODEL', 'claude-3-5-sonnet-20241022')}",
                api_key=os.getenv("ANTHROPIC_API_KEY"), temperature=0.7)
 
-# Chinese LLMs — all have free tiers
 def _make_deepseek_llm():
-    return LLM(model=f"openai/{os.getenv('DEEPSEEK_MODEL', 'deepseek-chat')}",
-               api_key=os.getenv("DEEPSEEK_API_KEY"), temperature=0.7,
-               base_url="https://api.deepseek.com/v1")
+    return LLM(model=f"deepseek/{os.getenv('DEEPSEEK_MODEL', 'deepseek-chat')}",
+               api_key=os.getenv("DEEPSEEK_API_KEY"), temperature=0.7)
 
 def _make_siliconflow_llm():
     return LLM(model=os.getenv("SILICONFLOW_MODEL", "Qwen/Qwen2.5-7B-Instruct"),
@@ -54,9 +54,8 @@ def _make_siliconflow_llm():
                base_url="https://api.siliconflow.cn/v1")
 
 def _make_qwen_llm():
-    return LLM(model=os.getenv("QWEN_MODEL", "qwen-turbo"),
-               api_key=os.getenv("QWEN_API_KEY"), temperature=0.7,
-               base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
+    return LLM(model=f"dashscope/{os.getenv('QWEN_MODEL', 'qwen-turbo')}",
+               api_key=os.getenv("QWEN_API_KEY"), temperature=0.7)
 
 def _make_glm_llm():
     return LLM(model=os.getenv("GLM_MODEL", "glm-4-flash"),
@@ -72,7 +71,6 @@ LLM_PROVIDERS = {
     "gemini": _make_gemini_llm, "groq": _make_groq_llm,
     "openrouter": _make_openrouter_llm, "huggingface": _make_huggingface_llm,
     "openai": _make_openai_llm, "anthropic": _make_anthropic_llm,
-    # Chinese LLMs
     "deepseek": _make_deepseek_llm, "siliconflow": _make_siliconflow_llm,
     "qwen": _make_qwen_llm, "glm": _make_glm_llm, "moonshot": _make_moonshot_llm,
 }
@@ -81,9 +79,23 @@ ENV_KEY_MAP = {
     "gemini": "GEMINI_API_KEY", "groq": "GROQ_API_KEY",
     "openrouter": "OPENROUTER_API_KEY", "huggingface": "HUGGINGFACE_API_KEY",
     "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY",
-    # Chinese LLMs
     "deepseek": "DEEPSEEK_API_KEY", "siliconflow": "SILICONFLOW_API_KEY",
     "qwen": "QWEN_API_KEY", "glm": "GLM_API_KEY", "moonshot": "MOONSHOT_API_KEY",
+}
+
+# Provider priority order for fallback (free providers first, then paid)
+PRIORITY_ORDER = ["groq", "gemini", "huggingface", "deepseek", "openai",
+                  "openrouter", "siliconflow", "qwen", "glm", "moonshot", "anthropic"]
+
+# Default agent routing — spread across providers to avoid rate limits
+# Each agent uses a different primary provider
+DEFAULT_AGENT_LLM = {
+    "researcher": "groq",
+    "architect": "openai",
+    "implementer": "groq",
+    "critic": "openai",
+    "tester": "huggingface",
+    "devops": "groq",
 }
 
 def _has_valid_key(provider: str) -> bool:
@@ -91,26 +103,30 @@ def _has_valid_key(provider: str) -> bool:
     return bool(val) and val not in ["", "your_gemini_api_key_here"]
 
 def get_llm(provider: str = None):
+    """Get an LLM by provider name, with automatic fallback to next available."""
     if provider and provider in LLM_PROVIDERS:
         if _has_valid_key(provider):
+            logger.info(f"🧠 Using LLM: {provider}")
             return LLM_PROVIDERS[provider]()
-        print(f"⚠️  {provider} API key not set, falling back to auto-detection")
-    for name, factory in LLM_PROVIDERS.items():
-        if _has_valid_key(name):
-            print(f"🧠 Primary LLM: {name}")
-            return factory()
-    raise ValueError("No LLM API key found!")
+        logger.warning(f"⚠️  {provider} API key not set, falling back")
+    # Fallback: try providers in priority order
+    for name in PRIORITY_ORDER:
+        if name in LLM_PROVIDERS and _has_valid_key(name):
+            logger.info(f"🧠 Fallback LLM: {name}")
+            return LLM_PROVIDERS[name]()
+    raise ValueError("No LLM API key found! Set at least one provider key.")
 
 def get_agent_llm(agent_name: str):
+    """Get LLM for a specific agent, using env override or smart default."""
     env_key = f"{agent_name.upper()}_LLM"
     provider = os.getenv(env_key, "").strip().lower()
-    if provider:
-        return get_llm(provider)
-    return get_llm()
+    if not provider:
+        provider = DEFAULT_AGENT_LLM.get(agent_name, "")
+    return get_llm(provider)
 
 
 # ═══════════════════════════════════════════════════════════
-# TOOL ASSEMBLY — every agent gets multi-LLM tools
+# TOOL ASSEMBLY
 # ═══════════════════════════════════════════════════════════
 
 def _get_agent_tools(agent_name: str = None):
@@ -125,7 +141,6 @@ def _get_agent_tools(agent_name: str = None):
 
 
 def _build_identity(agent_key: str):
-    """Pull the personality, backstory, and vibe from agent_identities."""
     ident = AGENT_IDENTITIES.get(agent_key, {})
     name = ident.get("name", agent_key.title())
     personality = ident.get("personality", "")
@@ -137,7 +152,7 @@ def _build_identity(agent_key: str):
 
 
 # ═══════════════════════════════════════════════════════════
-# AGENT DEFINITIONS — each is a character with personality
+# AGENT DEFINITIONS
 # ═══════════════════════════════════════════════════════════
 
 def create_researcher():
