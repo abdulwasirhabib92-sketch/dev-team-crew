@@ -30,7 +30,8 @@ def _make_gemini_llm():
 
 def _make_groq_llm():
     # Use OpenAI-compatible endpoint to avoid Groq cache_breakpoint incompatibility
-    return LLM(model=os.getenv('GROQ_MODEL', 'openai/gpt-oss-120b'),
+    # Model name must NOT contain slashes when using OpenAI-compatible mode
+    return LLM(model=os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile'),
                api_key=os.getenv("GROQ_API_KEY"),
                base_url="https://api.groq.com/openai/v1",
                temperature=0.7)
