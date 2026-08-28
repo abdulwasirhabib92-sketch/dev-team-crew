@@ -39,9 +39,9 @@ GROQ_MODELS = [
 # Per-agent primary model (index into GROQ_MODELS)
 # Spread agents to start on different models
 AGENT_MODEL_INDEX = {
-    "researcher":  0,  # openai/gpt-oss-120b
-    "architect":   2,  # qwen/qwen3.6-27b
-    "implementer": 1,  # qwen/qwen3.8-27b
+    "researcher":  1,  # openai/gpt-oss-120b
+    "architect":   4,  # qwen/qwen3.6-27b
+    "implementer": 2,  # qwen/qwen3.8-27b
     "critic":      3,  # groq/compound
     "tester":      4,  # openai/gpt-oss-20b
     "devops":      1,  # qwen/qwen3.8-27b
