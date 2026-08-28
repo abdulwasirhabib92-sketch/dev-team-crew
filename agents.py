@@ -3,6 +3,7 @@ Agent definitions for the Dev Team Crew.
 Each agent is a CHARACTER — with personality, vibe, and working style.
 11 LLM providers: 6 Western + 5 Chinese.
 Smart fallback: if a provider hits rate limits, automatically tries the next.
+Per-agent Groq model spreading to avoid rate limits.
 """
 from crewai import Agent, LLM
 from crewai_tools import SerperDevTool, FileReadTool
@@ -28,10 +29,15 @@ def _make_gemini_llm():
     return LLM(model=f"gemini/{os.getenv('GEMINI_MODEL', 'gemini-3.6-flash')}",
                api_key=os.getenv("GEMINI_API_KEY"), temperature=0.7)
 
-def _make_groq_llm():
-    # Use OpenAI-compatible endpoint to avoid Groq cache_breakpoint incompatibility
-    # Model name must NOT contain slashes when using OpenAI-compatible mode
-    return LLM(model=os.getenv('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+def _make_groq_llm(model=None, agent_name=None):
+    """Create a Groq LLM. Supports per-agent model selection to spread rate limits."""
+    # Check for agent-specific model override: e.g. RESEARCHER_GROQ_MODEL
+    if agent_name:
+        env_key = f"{agent_name.upper()}_GROQ_MODEL"
+        model = os.getenv(env_key, model)
+    if not model:
+        model = os.getenv('GROQ_MODEL', 'openai/gpt-oss-120b')
+    return LLM(model=model,
                api_key=os.getenv("GROQ_API_KEY"),
                base_url="https://api.groq.com/openai/v1",
                temperature=0.7)
@@ -96,14 +102,27 @@ ENV_KEY_MAP = {
 PRIORITY_ORDER = ["groq", "gemini", "huggingface", "deepseek", "openai",
                   "openrouter", "siliconflow", "qwen", "glm", "moonshot", "anthropic"]
 
-# Default agent routing — spread across providers to avoid rate limits
-# Each agent uses a different primary provider
+# ═══════════════════════════════════════════════════════════
+# PER-AGENT GROQ MODEL SPREADING
+# Each agent uses a different Groq model to avoid rate limits (30 RPM per model)
+# All models verified working as of 2026-08-28
+# ═══════════════════════════════════════════════════════════
+GROQ_MODEL_SPREAD = {
+    "researcher":  "openai/gpt-oss-120b",    # Smartest — best for research
+    "architect":   "openai/gpt-oss-120b",    # Best reasoning for architecture
+    "implementer": "qwen/qwen3.8-27b",       # Excellent at code generation
+    "critic":      "groq/compound",           # Balanced analysis
+    "tester":      "qwen/qwen3.6-27b",        # Different model for different perspective
+    "devops":      "openai/gpt-oss-20b",      # Fast and lightweight for infra tasks
+}
+
+# Default agent routing — all on Groq (free, 14,400 req/day, 30 RPM per model)
 DEFAULT_AGENT_LLM = {
     "researcher": "groq",
-    "architect": "openai",
+    "architect": "groq",
     "implementer": "groq",
-    "critic": "openai",
-    "tester": "huggingface",
+    "critic": "groq",
+    "tester": "groq",
     "devops": "groq",
 }
 
@@ -111,18 +130,25 @@ def _has_valid_key(provider: str) -> bool:
     val = os.getenv(ENV_KEY_MAP.get(provider, ""), "")
     return bool(val) and val not in ["", "your_gemini_api_key_here"]
 
-def get_llm(provider: str = None):
+def get_llm(provider: str = None, agent_name: str = None):
     """Get an LLM by provider name, with automatic fallback to next available."""
     if provider and provider in LLM_PROVIDERS:
         if _has_valid_key(provider):
-            logger.info(f"🧠 Using LLM: {provider}")
-            return LLM_PROVIDERS[provider]()
+            logger.info(f"🧠 Using LLM: {provider}" + (f" for {agent_name}" if agent_name else ""))
+            factory = LLM_PROVIDERS[provider]
+            # Pass agent_name to groq factory for per-agent model selection
+            if provider == "groq":
+                return factory(agent_name=agent_name)
+            return factory()
         logger.warning(f"⚠️  {provider} API key not set, falling back")
     # Fallback: try providers in priority order
     for name in PRIORITY_ORDER:
         if name in LLM_PROVIDERS and _has_valid_key(name):
             logger.info(f"🧠 Fallback LLM: {name}")
-            return LLM_PROVIDERS[name]()
+            factory = LLM_PROVIDERS[name]
+            if name == "groq":
+                return factory(agent_name=agent_name)
+            return factory()
     raise ValueError("No LLM API key found! Set at least one provider key.")
 
 def get_agent_llm(agent_name: str):
@@ -131,7 +157,7 @@ def get_agent_llm(agent_name: str):
     provider = os.getenv(env_key, "").strip().lower()
     if not provider:
         provider = DEFAULT_AGENT_LLM.get(agent_name, "")
-    return get_llm(provider)
+    return get_llm(provider, agent_name=agent_name)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -232,22 +258,29 @@ def create_devops():
 
 def create_all_agents():
     return {
-        "researcher": create_researcher(), "architect": create_architect(),
-        "implementer": create_implementer(), "critic": create_critic(),
-        "tester": create_tester(), "devops": create_devops(),
+        "researcher": create_researcher(),
+        "architect": create_architect(),
+        "implementer": create_implementer(),
+        "critic": create_critic(),
+        "tester": create_tester(),
+        "devops": create_devops(),
     }
+
+def list_team():
+    """Return team info for dashboard display."""
+    team = []
+    for key, ident in AGENT_IDENTITIES.items():
+        team.append({
+            "codename": ident.get("name", key.title()),
+            "role": key.title(),
+            "vibe": ident.get("vibe", ""),
+            "model": GROQ_MODEL_SPREAD.get(key, "openai/gpt-oss-120b"),
+            "provider": "groq",
+        })
+    return team
 
 def list_available_providers():
     return get_available_providers()
 
 def list_providers():
     return get_provider_info()
-
-def list_team():
-    team = []
-    for key, ident in AGENT_IDENTITIES.items():
-        team.append({
-            "codename": ident["name"], "role": key.title(),
-            "vibe": ident["vibe"], "catchphrase": ident["catchphrase"],
-        })
-    return team
