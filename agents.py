@@ -28,12 +28,12 @@ logger = logging.getLogger(__name__)
 # All models verified working on 2026-08-28.
 # ═══════════════════════════════════════════════════════════
 GROQ_MODELS = [
-    "openai/gpt-oss-120b",     # Smartest but gets overloaded
-    "qwen/qwen3.8-27b",        # Excellent at code
-    "qwen/qwen3.6-27b",        # Good general purpose
-    "groq/compound",            # Balanced
-    "openai/gpt-oss-20b",      # Fast, lightweight
-    "allam-2-7b",               # Arabic-focused but works
+    "groq/openai/gpt-oss-120b",     # Smartest but gets overloaded
+    "groq/qwen/qwen3.8-27b",        # Excellent at code
+    "groq/qwen/qwen3.6-27b",        # Good general purpose
+    "groq/groq/compound",           # Balanced
+    "groq/openai/gpt-oss-20b",      # Fast, lightweight
+    "groq/allam-2-7b",               # Arabic-focused but works
 ]
 
 # Per-agent primary model (index into GROQ_MODELS)
@@ -68,10 +68,9 @@ def _make_groq_llm(model=None, agent_name=None):
         elif not model:
             model = GROQ_MODELS[idx]
     if not model:
-        model = os.getenv('GROQ_MODEL', GROQ_MODELS[0])
+        model = os.getenv('GROQ_MODEL', 'groq/openai/gpt-oss-120b')
     return LLM(model=model,
                api_key=os.getenv("GROQ_API_KEY"),
-               base_url="https://api.groq.com/openai/v1",
                temperature=0.7)
 
 def _make_openrouter_llm():
