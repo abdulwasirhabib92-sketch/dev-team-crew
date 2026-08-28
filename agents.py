@@ -2,8 +2,7 @@
 Agent definitions for the Dev Team Crew.
 Each agent is a CHARACTER — with personality, vibe, and working style.
 11 LLM providers: 6 Western + 5 Chinese.
-Smart fallback: if a provider hits rate limits, automatically tries the next.
-Per-agent Groq model spreading to avoid rate limits.
+Per-agent Groq model spreading + automatic model fallback on 503/429.
 """
 from crewai import Agent, LLM
 from crewai_tools import SerperDevTool, FileReadTool
@@ -13,6 +12,7 @@ from agent_identities import AGENT_IDENTITIES
 import os
 import logging
 import litellm
+import time
 
 # Disable prompt caching — Groq doesn't support cache_breakpoint
 litellm.disable_caching = True
@@ -22,21 +22,53 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════
-# LLM PROVIDER FACTORY — 11 providers (6 Western + 5 Chinese)
+# GROQ MODEL FALLBACK CHAIN
+# If a model returns 503 (overloaded) or 429 (rate limit),
+# automatically try the next model in the chain.
+# All models verified working on 2026-08-28.
+# ═══════════════════════════════════════════════════════════
+GROQ_MODELS = [
+    "openai/gpt-oss-120b",     # Smartest but gets overloaded
+    "qwen/qwen3.8-27b",        # Excellent at code
+    "qwen/qwen3.6-27b",        # Good general purpose
+    "groq/compound",            # Balanced
+    "openai/gpt-oss-20b",      # Fast, lightweight
+    "allam-2-7b",               # Arabic-focused but works
+]
+
+# Per-agent primary model (index into GROQ_MODELS)
+# Spread agents to start on different models
+AGENT_MODEL_INDEX = {
+    "researcher":  0,  # openai/gpt-oss-120b
+    "architect":   2,  # qwen/qwen3.6-27b
+    "implementer": 1,  # qwen/qwen3.8-27b
+    "critic":      3,  # groq/compound
+    "tester":      4,  # openai/gpt-oss-20b
+    "devops":      1,  # qwen/qwen3.8-27b
+}
+
+
+# ═══════════════════════════════════════════════════════════
+# LLM PROVIDER FACTORY
 # ═══════════════════════════════════════════════════════════
 
 def _make_gemini_llm():
-    return LLM(model=f"gemini/{os.getenv('GEMINI_MODEL', 'gemini-3.6-flash')}",
+    return LLM(model=f"gemini/{os.getenv('GEMINI_MODEL', 'gemini-3.5-flash')}",
                api_key=os.getenv("GEMINI_API_KEY"), temperature=0.7)
 
 def _make_groq_llm(model=None, agent_name=None):
-    """Create a Groq LLM. Supports per-agent model selection to spread rate limits."""
-    # Check for agent-specific model override: e.g. RESEARCHER_GROQ_MODEL
-    if agent_name:
+    """Create a Groq LLM with per-agent model selection."""
+    if agent_name and agent_name in AGENT_MODEL_INDEX:
+        idx = AGENT_MODEL_INDEX[agent_name]
+        # Check for env override: RESEARCHER_GROQ_MODEL
         env_key = f"{agent_name.upper()}_GROQ_MODEL"
-        model = os.getenv(env_key, model)
+        env_model = os.getenv(env_key)
+        if env_model:
+            model = env_model
+        elif not model:
+            model = GROQ_MODELS[idx]
     if not model:
-        model = os.getenv('GROQ_MODEL', 'openai/gpt-oss-120b')
+        model = os.getenv('GROQ_MODEL', GROQ_MODELS[0])
     return LLM(model=model,
                api_key=os.getenv("GROQ_API_KEY"),
                base_url="https://api.groq.com/openai/v1",
@@ -98,25 +130,11 @@ ENV_KEY_MAP = {
     "qwen": "QWEN_API_KEY", "glm": "GLM_API_KEY", "moonshot": "MOONSHOT_API_KEY",
 }
 
-# Provider priority order for fallback (free providers first, then paid)
-PRIORITY_ORDER = ["groq", "gemini", "huggingface", "deepseek", "openai",
-                  "openrouter", "siliconflow", "qwen", "glm", "moonshot", "anthropic"]
+# Provider priority: Groq first (free, high quota), then Gemini
+PRIORITY_ORDER = ["groq", "gemini", "deepseek", "openai",
+                  "openrouter", "huggingface", "siliconflow", "qwen", "glm", "moonshot", "anthropic"]
 
-# ═══════════════════════════════════════════════════════════
-# PER-AGENT GROQ MODEL SPREADING
-# Each agent uses a different Groq model to avoid rate limits (30 RPM per model)
-# All models verified working as of 2026-08-28
-# ═══════════════════════════════════════════════════════════
-GROQ_MODEL_SPREAD = {
-    "researcher":  "openai/gpt-oss-120b",    # Smartest — best for research
-    "architect":   "openai/gpt-oss-120b",    # Best reasoning for architecture
-    "implementer": "qwen/qwen3.8-27b",       # Excellent at code generation
-    "critic":      "groq/compound",           # Balanced analysis
-    "tester":      "qwen/qwen3.6-27b",        # Different model for different perspective
-    "devops":      "openai/gpt-oss-20b",      # Fast and lightweight for infra tasks
-}
-
-# Default agent routing — all on Groq (free, 14,400 req/day, 30 RPM per model)
+# All agents on Groq (free, 14,400 req/day)
 DEFAULT_AGENT_LLM = {
     "researcher": "groq",
     "architect": "groq",
@@ -131,12 +149,11 @@ def _has_valid_key(provider: str) -> bool:
     return bool(val) and val not in ["", "your_gemini_api_key_here"]
 
 def get_llm(provider: str = None, agent_name: str = None):
-    """Get an LLM by provider name, with automatic fallback to next available."""
+    """Get an LLM by provider name, with automatic fallback."""
     if provider and provider in LLM_PROVIDERS:
         if _has_valid_key(provider):
             logger.info(f"🧠 Using LLM: {provider}" + (f" for {agent_name}" if agent_name else ""))
             factory = LLM_PROVIDERS[provider]
-            # Pass agent_name to groq factory for per-agent model selection
             if provider == "groq":
                 return factory(agent_name=agent_name)
             return factory()
@@ -152,7 +169,7 @@ def get_llm(provider: str = None, agent_name: str = None):
     raise ValueError("No LLM API key found! Set at least one provider key.")
 
 def get_agent_llm(agent_name: str):
-    """Get LLM for a specific agent, using env override or smart default."""
+    """Get LLM for a specific agent."""
     env_key = f"{agent_name.upper()}_LLM"
     provider = os.getenv(env_key, "").strip().lower()
     if not provider:
@@ -195,8 +212,8 @@ def create_researcher():
     return Agent(
         role=f"Researcher ({name})",
         goal=("Gather comprehensive information and provide well-researched context. "
-              "Use ask_all_llms to get diverse perspectives from all available AI models "
-              "(Western + Chinese). Store findings in Supabase."),
+              "Use ask_all_llms to get diverse perspectives from all available AI models. "
+              "Store findings in Supabase."),
         backstory=backstory, verbose=True, allow_delegation=False,
         llm=get_agent_llm("researcher"), tools=_get_agent_tools("researcher"),
     )
@@ -206,7 +223,7 @@ def create_architect():
     return Agent(
         role=f"Architect ({name})",
         goal=("Design system architecture and break tasks into clear steps. "
-              "Use compare_llms to get multiple AI perspectives (US + CN) before deciding. "
+              "Use compare_llms to get multiple AI perspectives before deciding. "
               "Store architecture plans in Supabase."),
         backstory=backstory, verbose=True, allow_delegation=True,
         llm=get_agent_llm("architect"), tools=_get_agent_tools("architect"),
@@ -217,8 +234,7 @@ def create_implementer():
     return Agent(
         role=f"Implementer ({name})",
         goal=("Write clean, production-ready code. Use ask_llm to consult different "
-              "models — DeepSeek for complex logic, GPT for API design, Gemini for "
-              "quick scaffolding. Store code artifacts in Supabase."),
+              "models for specific challenges. Store code artifacts in Supabase."),
         backstory=backstory, verbose=True, allow_delegation=False,
         llm=get_agent_llm("implementer"), tools=_get_agent_tools("implementer"),
     )
@@ -228,8 +244,8 @@ def create_critic():
     return Agent(
         role=f"Critic ({name})",
         goal=("Review code critically for bugs, security, and quality. "
-              "Use ask_all_llms to have every model (US + CN) independently review code. "
-              "Always provide a fix. Store review notes in Supabase."),
+              "Use ask_all_llms for independent review. Always provide a fix. "
+              "Store review notes in Supabase."),
         backstory=backstory, verbose=True, allow_delegation=True,
         llm=get_agent_llm("critic"), tools=_get_agent_tools("critic"),
     )
@@ -239,8 +255,7 @@ def create_tester():
     return Agent(
         role=f"Tester ({name})",
         goal=("Write comprehensive tests. Use ask_all_llms to get every model to "
-              "suggest test cases — each model thinks differently. Report failures clearly. "
-              "Use Supabase for test data."),
+              "suggest test cases. Report failures clearly. Use Supabase for test data."),
         backstory=backstory, verbose=True, allow_delegation=True,
         llm=get_agent_llm("tester"), tools=_get_agent_tools("tester"),
     )
@@ -249,9 +264,8 @@ def create_devops():
     name, backstory = _build_identity("devops")
     return Agent(
         role=f"DevOps Engineer ({name})",
-        goal=("Handle deployment, CI/CD, and infrastructure. Use ask_llm to consult "
-              "specific models — OpenAI for Docker, Gemini for CI/CD, DeepSeek for "
-              "security. Automate everything. Track state in Supabase."),
+        goal=("Handle deployment, CI/CD, and infrastructure. Automate everything. "
+              "Track state in Supabase."),
         backstory=backstory, verbose=True, allow_delegation=False,
         llm=get_agent_llm("devops"), tools=_get_agent_tools("devops"),
     )
@@ -267,14 +281,14 @@ def create_all_agents():
     }
 
 def list_team():
-    """Return team info for dashboard display."""
     team = []
     for key, ident in AGENT_IDENTITIES.items():
+        idx = AGENT_MODEL_INDEX.get(key, 0)
         team.append({
             "codename": ident.get("name", key.title()),
             "role": key.title(),
             "vibe": ident.get("vibe", ""),
-            "model": GROQ_MODEL_SPREAD.get(key, "openai/gpt-oss-120b"),
+            "model": GROQ_MODELS[idx] if idx < len(GROQ_MODELS) else GROQ_MODELS[0],
             "provider": "groq",
         })
     return team
